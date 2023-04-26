@@ -78,6 +78,29 @@ def compute_weights_and_returns(subset_returns, weights):
 
 # Return.portfolio.geometric from R
 def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
+  """
+
+    Parameters
+    ----------
+    R : a pandas series of asset returns
+    weights : a vector or pandas series of asset weights.
+    verbose : a boolean specifying a verbose output containing:
+        portfolio returns,
+        beginning of period weights and values, end of period weights and values,
+        asset contribution to returns, and two-way turnover calculation
+    rebalance_on : a string specifying rebalancing frequency if weights are passed in as a vector.
+
+    Raises
+    ------
+    ValueError
+        Number of asset weights must be equal to the number of assets.
+
+    Returns
+    -------
+    TYPE
+        See verbose parameter for True value, otherwise just portfolio returns.
+
+    """  
     
   # impuute NAs in returns
   if R.isna().sum().sum() > 0:
