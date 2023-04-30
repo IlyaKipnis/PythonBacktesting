@@ -68,9 +68,9 @@ def endpoints(df, on = "M", offset = 0):
 def compute_weights_and_returns(subset_returns, weights):
   rep_weights = np.tile(weights, (len(subset_returns), 1))
   cum_subset_weights = np.cumprod(1 + subset_returns, axis=0) * rep_weights
-  EOP_Weight = cum_subset_weights / np.sum(cum_subset_weights, axis=1)[:, np.newaxis]
+  EOP_Weight = cum_subset_weights / np.sum(cum_subset_weights, axis=1).to_numpy()[:, np.newaxis]
   cum_subset_weights_bop = cum_subset_weights / (1 + subset_returns)
-  BOP_Weight = cum_subset_weights_bop / np.sum(cum_subset_weights_bop, axis=1)[:, np.newaxis]
+  BOP_Weight = cum_subset_weights_bop / np.sum(cum_subset_weights_bop, axis=1).to_numpy()[:, np.newaxis]
   portf_returns_subset = pd.DataFrame(np.sum(subset_returns.values * BOP_Weight, axis=1), 
                                         index=subset_returns.index, columns=['Portfolio.Returns'])
   return [portf_returns_subset, BOP_Weight, EOP_Weight]
