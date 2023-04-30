@@ -101,8 +101,10 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
         See verbose parameter for True value, otherwise just portfolio returns.
 
     """  
-    
-  # impuute NAs in returns
+  R = R.copy()
+  weights = weights.copy()
+
+  # impute NAs in returns
   if R.isna().sum().sum() > 0:
     R.fillna(0, inplace=True)
     wn.warn("NAs detected in returns. Imputing with zeroes.")
