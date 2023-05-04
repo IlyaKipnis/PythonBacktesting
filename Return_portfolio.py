@@ -102,7 +102,7 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
 
     """  
   R = R.copy()
-  weights = weights.copy()
+  
 
   # impute NAs in returns
   if R.isna().sum().sum() > 0:
@@ -113,6 +113,8 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
   if weights is None:
     weights = np.repeat(1/R.shape[1], R.shape[1])
     wn.warn("Weights not provided, assuming equal weight for rebalancing periods.")
+  else:
+    weights = weights.copy()
     
     # if weights aren't passed in as a data frame (they're probably a list)
     # turn them into a 1 x num_assets data frame
