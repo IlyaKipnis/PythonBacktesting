@@ -87,7 +87,10 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
     verbose : a boolean specifying a verbose output containing:
         portfolio returns,
         beginning of period weights and values, end of period weights and values,
-        asset contribution to returns, and two-way turnover calculation
+        asset contribution to returns, and two-way turnover calculation.
+        Defaults to True. Set to False if you only want the portfolio returns.
+        Otherwise, access the returns object by specifying the returns object
+        in the resultant dictionary.
     rebalance_on : a string specifying rebalancing frequency if weights are passed in as a vector.
 
     Raises
@@ -100,10 +103,11 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
     TYPE
         See verbose parameter for True value, otherwise just portfolio returns.
 
-    """  
+    """
+  
+  # make sure original object isn't overridden
   R = R.copy()
   
-
   # impute NAs in returns
   if R.isna().sum().sum() > 0:
     R.fillna(0, inplace=True)
@@ -115,7 +119,7 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
     wn.warn("Weights not provided, assuming equal weight for rebalancing periods.")
   else:
     weights = weights.copy()
-    
+
     # if weights aren't passed in as a data frame (they're probably a list)
     # turn them into a 1 x num_assets data frame
   if type(weights) != pd.DataFrame:
@@ -126,7 +130,7 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
   if weights.shape[1] != R.shape[1]:
         raise ValueError("Number of weights is unequal to number of assets. Correct this.")
     
-    
+
   # if there's a row vector of weights, create a data frame with  the desired 
   # rebalancing schedule --  also add in the very first date into the schedule
   if weights.shape[0] == 1:
@@ -153,7 +157,12 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on='months'):
     print("One or more periods do not have investment equal to 1. Creating residual weights.")
     weights["Residual"] = residual_weights
     R["Residual"] = 0
-    
+  
+  if weights.index[-1] != R.index[-1]:
+    blank_vec = np.zeros(weights.shape[1])
+    blank_xts = pd.DataFrame([blank_vec], index=[R.index[-1]], columns=weights.columns)
+    weights = pd.concat([weights, blank_xts])  
+  
   if weights.shape[0] != 1:
     portf_returns, bop_weights, eop_weights = [], [], []
     for i in range(weights.shape[0]-1):
