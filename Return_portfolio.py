@@ -15,14 +15,19 @@ def make_demo():
     rets = prices.pct_change().dropna()
     weights = pd.DataFrame([
         {'Date': '2006-08-01', 'SPY': .5, 'TLT': .25, 'DBC': .25},
-        {'Date': '2023-04-03', 'SPY': .5, 'TLT': .25, 'DBC': .25}
+        {'Date': '2010-08-02', 'SPY': .5, 'TLT': .25, 'DBC': .25},
+        {'Date': '2023-04-03', 'SPY': .5, 'TLT': .25, 'DBC': .25},
+        {'Date': '2023-05-03', 'SPY': .5, 'TLT': .25, 'DBC': .25},
     ])
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
-    return get_portfolio_return(rets, weights)
+    res = get_portfolio_return(rets, weights, verbose=True) #rebalance_on='months')#weights)
+
+    return res
     
     
 def get_sample_prices():
+    
     import yfinance as yf
 
     # Download data for SPY and TLT
@@ -80,30 +85,24 @@ def get_rebalance_endpoints(df, on = "M", offset = 0):
 
 
 def compute_drifting_weights(w):
-    return w / np.sum(w, axis=1).to_numpy()[:, np.newaxis]
+    return w / np.sum(w, axis=1)[:, np.newaxis]
 
 
 def compute_weights_and_returns(subset_returns, weights):
     subset_returns = subset_returns.copy()
     # assuming trading on close, return on rebalance day is 0 for new position
-    subset_returns.iloc[0,:] = 0
-    
-    rep_weights = np.tile(weights, (len(subset_returns), 1))
+    subset_returns[0] = 0
+    rep_weights = np.tile(weights, (subset_returns.shape[0], 1))
     # cumulative returns weights
-    cum_subset_weights = np.cumprod(1 + subset_returns, axis=0) * rep_weights
-    cum_subset_weights_bop = cum_subset_weights / (1 + subset_returns)
-    # End-Of-Period weights
-    EOP_Weight = compute_drifting_weights(cum_subset_weights)    
-    # Beginning-Of-Period weights
-    BOP_Weight = compute_drifting_weights(cum_subset_weights_bop)
-    portf_returns_subset = pd.DataFrame(
-        np.sum(subset_returns.values * BOP_Weight, axis=1), 
-        index=subset_returns.index, 
-        columns=['Portfolio.Returns']
+    cum_subset_weights = np.multiply(
+        np.cumprod(1 + subset_returns, axis=0), rep_weights
     )
+    cum_subset_weights_bop = np.divide(cum_subset_weights, 1 + subset_returns)
+    EOP_Weight = compute_drifting_weights(cum_subset_weights)    
+    BOP_Weight = compute_drifting_weights(cum_subset_weights_bop)
+    portf_returns_subset = np.sum(np.multiply(subset_returns, BOP_Weight), axis=1)
 
     return [portf_returns_subset, BOP_Weight, EOP_Weight]
-
 
 
 def compute_turnover(w):
@@ -116,7 +115,63 @@ def compute_turnover(w):
     return turnover
 
 
-# Return.portfolio.geometric from R
+def prepare_weights(R, weights=None, rebalance_on=None):
+    # if no weights provided, create equal weight vector
+    if weights is None:
+        weights = [1./R.shape[1]] * R.shape[1]
+        wn.warn("Weights not provided, assuming equal weight for rebalancing periods.")
+    else:
+        weights = weights.copy()
+        
+    # if weights aren't passed in as a data frame (they're probably a list)
+    # turn them into a 1 x num_assets data frame
+    if isinstance(weights, list):
+        weights = pd.Series(weights, index=R.columns).to_frame().T
+    elif isinstance(weights, pd.DataFrame):
+        pass
+    else:
+        raise TypeError("Only list or pd.DataFrame are accepted")
+    
+    # error checking for same number of weights as assets
+    if weights.shape[1] != R.shape[1]:
+        raise ValueError("Number of weights is unequal to number of assets. Correct this.")
+        
+    # if there's a row vector of weights, create a data frame with  the desired 
+    # rebalancing schedule --  also add in the very first date into the schedule
+    if weights.shape[0] == 1 and weights.index[0] == 0:
+        if rebalance_on is not None:
+            ep = get_rebalance_endpoints(R, on=rebalance_on)
+            weights = pd.DataFrame(
+                np.tile(weights, (len(ep), 1)), 
+                index=R.index[ep], 
+                columns=R.columns
+            )
+            # add first date if not already there
+            if R.index[0] != weights.index[0]:
+                first_weights = pd.DataFrame(
+                    [weights.iloc[0,:].values], 
+                    index=[R.index[0]], 
+                    columns=R.columns
+                )
+                weights = pd.concat([first_weights, weights], axis=0)
+        else:
+            weights.index = [R.index[0]]
+        
+        weights.index.name = R.index.name
+          
+    if weights.isna().sum().sum() > 0:
+      weights.fillna(0, inplace=True)
+      wn.warn("NAs detected in weights. Imputing with zeroes.")
+      
+    residual_weights = 1 - weights.sum(axis=1)
+    if abs(residual_weights).sum() != 0:
+        print("One or more periods do not have investment equal to 1. Creating residual weights.")
+        weights["Residual"] = residual_weights
+        R["Residual"] = 0
+      
+    return weights
+
+
 def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     """
 
@@ -149,114 +204,73 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
         R.fillna(0, inplace=True)
         wn.warn("NAs detected in returns. Imputing with zeroes.")
       
-    # if no weights provided, create equal weight vector
-    if weights is None:
-        #weights = np.repeat(1/R.shape[1], R.shape[1])
-        weights = [1/R.shape[1]] * R.shape[1]
-        wn.warn("Weights not provided, assuming equal weight for rebalancing periods.")
-    else:
-        weights = weights.copy()
-      
-    # if weights aren't passed in as a data frame (they're probably a list)
-    # turn them into a 1 x num_assets data frame
-    if isinstance(weights, list):
-        weights = pd.Series(weights, index=R.columns).to_frame().T
-    elif isinstance(weights, pd.DataFrame):
-        pass
-    else:
-        raise TypeError("Only list or pd.DataFrame are accepted")
-    
-    # error checking for same number of weights as assets
-    if weights.shape[1] != R.shape[1]:
-        raise ValueError("Number of weights is unequal to number of assets. Correct this.")
+    weights = prepare_weights(R, weights=weights, rebalance_on=rebalance_on)
+    Wv = weights.values
+    date_idx = np.where(R.index.isin(weights.index.tolist()))[0]
+    Rv = R.values
+    portf_returns, bop_weights, eop_weights = [], [], []
+    for i in range(date_idx.shape[0]):
+        try:
+            subset = Rv[date_idx[i]:date_idx[i+1]+1]
+        except:
+            # last rebalance
+            subset = Rv[date_idx[i]:]
 
-    # if there's a row vector of weights, create a data frame with  the desired 
-    # rebalancing schedule --  also add in the very first date into the schedule
-    if weights.shape[0] == 1 and weights.index[0] == 0:
-        if rebalance_on is not None:
-            ep = get_rebalance_endpoints(R, on = rebalance_on)
-            weights = pd.DataFrame(
-                np.tile(weights, (len(ep), 1)), 
-                index=R.index[ep], 
-                columns=R.columns
-            )
-            
-            # add first date if not already there
-            if R.index[0] != weights.index[0]:
-                first_weights = pd.DataFrame(
-                    weights.values, 
-                    index=[R.index[0]], 
-                    columns=R.columns
-                )
-                weights = pd.concat([first_weights, weights], axis=0)
-        else:
-            weights.index = [R.index[0]]
+        subset_out = compute_weights_and_returns(subset, Wv[i])
+
+        if i > 0: 
+            # drop first period as already there, not for EOD (for turnover comp)
+            subset_out = [s[1:] for s in subset_out[:2]] + [subset_out[2]]
         
-        weights.index.name = R.index.name
-          
-    if weights.isna().sum().sum() > 0:
-      weights.fillna(0, inplace=True)
-      wn.warn("NAs detected in weights. Imputing with zeroes.")
-      
-    residual_weights = 1 - weights.sum(axis=1)
-    if abs(residual_weights).sum() != 0:
-        print("One or more periods do not have investment equal to 1. Creating residual weights.")
-        weights["Residual"] = residual_weights
-        R["Residual"] = 0
-     
-    if weights.shape[0] > 1:
-        portf_returns, bop_weights, eop_weights = [], [], []
-        for i in range(weights.shape[0]):
-            try:
-                subset = R.loc[
-                    (R.index >= weights.index[i]) & \
-                    (R.index <= weights.index[i+1])
-                ].copy()
-            except:
-                # last rebalance
-                subset = R.loc[R.index >= weights.index[i]].copy()
-
-            subset_out = compute_weights_and_returns(subset, weights.iloc[i,:])
-            subset_out[0].columns = ["Portfolio.Returns"]
-            if i > 0: 
-                # drop first period as already there, not for EOD (for turnover comp)
-                subset_out = [s.iloc[1:] for s in subset_out[:2]] + [subset_out[2]]
-            
-            portf_returns.append(subset_out[0])
-            bop_weights.append(subset_out[1])
-            eop_weights.append(subset_out[2])
-            
-        portf_returns = pd.concat(portf_returns, axis=0)
-        bop_weights = pd.concat(bop_weights, axis=0)
-        eop_weights = pd.concat(eop_weights, axis=0)
-    else: # only one weight allocation, just drift the portfolio
-        subset = R.loc[R.index >= weights.index[0]].copy()
-        out = compute_weights_and_returns(subset, weights)
-        portf_returns = out[0]; portf_returns.columns = ['Portfolio.Returns']
-        bop_weights = out[1]
-        eop_weights = out[2]
-      
+        portf_returns.append(subset_out[0])
+        bop_weights.append(subset_out[1])
+        eop_weights.append(subset_out[2])
+        
+    portf_returns = np.concatenate(portf_returns)
+    bop_weights = np.concatenate(bop_weights)
+    eop_weights = np.concatenate(eop_weights)
+    
     if not verbose:
-        return portf_returns
+        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return'), weights, R
       
-    turnover = compute_turnover(eop_weights.loc[weights.index, weights.columns])
+    # using numpy, we have a problem because we dont have dates on axis
+    increment = np.array([0]+list(range(weights.shape[0]-1)))
+    date_idx_eop = date_idx + increment  # duplicate position, first occurence
+    duplicate_positions = date_idx_eop + np.array([0] + [1] * (weights.shape[0]-1)) # duplicate position, second occurence
+    pos = np.unique(np.concatenate((date_idx_eop, duplicate_positions)))
+    pos = pos - date_idx[0] # because we truncate data before first rebalance
+    weights_at_rebalance = eop_weights[pos]
+    # reconstruct pd.DataFrame to use Groupby on dates
+    weights_at_rebalance = pd.DataFrame(
+        weights_at_rebalance, columns=weights.columns, 
+        index=[
+            weights.index[0]
+        ] + list(np.sort(weights.index[1:].to_list()*2))
+    )
+    turnover = compute_turnover(weights_at_rebalance)
     # droping duplicate indices due to loop in case of multiple rebalancing
     # need to keep them to compute turnover
-    eop_weights = eop_weights[~eop_weights.index.duplicated(keep='last')]
-    
-    pct_contribution = R * bop_weights
+    eop_weights = np.delete(eop_weights, (date_idx_eop - date_idx[0])[1:], axis=0)
+    pct_contribution = np.multiply(Rv[date_idx[0]:], bop_weights)
     cum_returns = (1 + portf_returns).cumprod()
-
-    eop_value = eop_weights * pd.DataFrame(
-        np.tile(cum_returns, (1, eop_weights.shape[1])), 
-        index=eop_weights.index, 
-        columns=eop_weights.columns
+    eop_value = np.multiply(
+        eop_weights, 
+        np.tile(cum_returns, (eop_weights.shape[1], 1)).T
     )
-    bop_value = bop_weights * pd.DataFrame(
-        np.tile(cum_returns/(1+portf_returns), (1, bop_weights.shape[1])), 
-        index=bop_weights.index, 
-        columns=bop_weights.columns
+    bop_value = np.multiply(
+        bop_weights, 
+        np.tile(cum_returns/(1+portf_returns), (bop_weights.shape[1], 1)).T
     )
+    
+    # recreate pd.DataFrames
+    date_index = R.loc[weights.index[0]:].index
+    cols = weights.columns
+    portf_returns = pd.Series(portf_returns, index=date_index, name='return')
+    pct_contribution = pd.DataFrame(bop_weights, index=date_index, columns=cols)
+    bop_weights = pd.DataFrame(bop_weights, index=date_index, columns=cols)
+    eop_weights = pd.DataFrame(eop_weights, index=date_index, columns=cols)
+    bop_value = pd.DataFrame(bop_value, index=date_index, columns=cols)
+    eop_value = pd.DataFrame(eop_value, index=date_index, columns=cols)
     
     out = [portf_returns, pct_contribution, bop_weights, eop_weights, 
            bop_value, eop_value, turnover]
@@ -264,9 +278,8 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
                                  'EOP.Weight', 'BOP.Value', 'EOP.Value', 
                                  'Two.Way.Turnover'], out)}
     
-    return out
+    return out, weights, R
     
       
 if __name__ == '__main__':
     res = make_demo()
-    
