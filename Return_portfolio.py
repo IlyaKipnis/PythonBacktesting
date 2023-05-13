@@ -21,13 +21,10 @@ def make_demo():
     ])
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
-    res = get_portfolio_return(rets, weights, verbose=True) #rebalance_on='months')#weights)
-
-    return res
+    return get_portfolio_return(rets, [0.5,0.25,0.25], verbose=True) #rebalance_on='months')#weights)
     
     
 def get_sample_prices():
-    
     import yfinance as yf
 
     # Download data for SPY and TLT
@@ -42,10 +39,8 @@ def get_sample_prices():
         df_list.append(data)
     
     # Combine the data frames into one
-    df = pd.concat(df_list, axis=1)
+    return pd.concat(df_list, axis=1).dropna()
     
-    return df.dropna()
-
 
 def get_rebalance_endpoints(df, on = "M", offset = 0):
     """
@@ -155,6 +150,13 @@ def prepare_weights(R, weights=None, rebalance_on=None):
                 )
                 weights = pd.concat([first_weights, weights], axis=0)
         else:
+            # in that case, we assume, as in R implementation, that one invests
+            # one day before so that we dont lose 1 trading date
+            R = pd.concat([
+                pd.DataFrame(0, columns=R.columns, 
+                             index=[R.index[0]-pd.Timedelta(1, "d")]),
+                R
+            ])
             weights.index = [R.index[0]]
         
         weights.index.name = R.index.name
@@ -169,7 +171,7 @@ def prepare_weights(R, weights=None, rebalance_on=None):
         weights["Residual"] = residual_weights
         R["Residual"] = 0
       
-    return weights
+    return weights, R
 
 
 def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
@@ -204,7 +206,8 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
         R.fillna(0, inplace=True)
         wn.warn("NAs detected in returns. Imputing with zeroes.")
       
-    weights = prepare_weights(R, weights=weights, rebalance_on=rebalance_on)
+    weights, R = prepare_weights(R, weights=weights, rebalance_on=rebalance_on)
+
     Wv = weights.values
     date_idx = np.where(R.index.isin(weights.index.tolist()))[0]
     Rv = R.values
@@ -278,7 +281,7 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
                                  'EOP.Weight', 'BOP.Value', 'EOP.Value', 
                                  'Two.Way.Turnover'], out)}
     
-    return out, weights, R
+    return out
     
       
 if __name__ == '__main__':
