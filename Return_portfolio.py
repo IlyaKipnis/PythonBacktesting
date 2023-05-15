@@ -21,7 +21,8 @@ def make_demo():
     ])
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
-    return get_portfolio_return(rets, [0.5,0.25,0.25], verbose=True) #rebalance_on='months')#weights)
+
+    return get_portfolio_return(rets, [.5, .25, .25], verbose=True) #rebalance_on='months')#weights)
     
     
 def get_sample_prices():
@@ -174,6 +175,31 @@ def prepare_weights(R, weights=None, rebalance_on=None):
     return weights, R
 
 
+def compute_risk_contribution(rets, weights):
+    """
+    Returns the percentage risk contribution of each assets over the period
+    source: https://quantdare.com/risk-contribution-in-portfolio-management/
+    Parameters
+    ----------
+    rets : np.ndarray
+        TxN array of returns
+    weights : np.array
+        array of weights
+
+    Returns
+    -------
+    np.ndarray
+        percentage risk contribution
+
+    """
+    covariances = np.cov(rets[1:].T)
+    portfolio_vol = np.sqrt(np.dot(np.dot(weights, covariances), weights))
+    marginal_risk_contr = np.dot(weights, covariances) / portfolio_vol
+    risk_contribution = weights * marginal_risk_contr
+    
+    return risk_contribution / portfolio_vol
+    
+
 def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     """
 
@@ -184,7 +210,8 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     verbose : a boolean specifying a verbose output containing:
         portfolio returns,
         beginning of period weights and values, end of period weights and values,
-        asset contribution to returns, and two-way turnover calculation
+        asset contribution to returns, asset contribution to risk,
+        and two-way turnover calculation
     rebalance_on : a string specifying rebalancing frequency if weights are passed in as a vector.
         e.g. 'months'
 
@@ -211,7 +238,7 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     Wv = weights.values
     date_idx = np.where(R.index.isin(weights.index.tolist()))[0]
     Rv = R.values
-    portf_returns, bop_weights, eop_weights = [], [], []
+    portf_returns, bop_weights, eop_weights, risk_contribution = [], [], [], []
     for i in range(date_idx.shape[0]):
         try:
             subset = Rv[date_idx[i]:date_idx[i+1]+1]
@@ -220,7 +247,8 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
             subset = Rv[date_idx[i]:]
 
         subset_out = compute_weights_and_returns(subset, Wv[i])
-
+        risk_contribution.append(compute_risk_contribution(subset, Wv[i]))
+        
         if i > 0: 
             # drop first period as already there, not for EOD (for turnover comp)
             subset_out = [s[1:] for s in subset_out[:2]] + [subset_out[2]]
@@ -228,7 +256,7 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
         portf_returns.append(subset_out[0])
         bop_weights.append(subset_out[1])
         eop_weights.append(subset_out[2])
-        
+    
     portf_returns = np.concatenate(portf_returns)
     bop_weights = np.concatenate(bop_weights)
     eop_weights = np.concatenate(eop_weights)
@@ -254,7 +282,7 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     # droping duplicate indices due to loop in case of multiple rebalancing
     # need to keep them to compute turnover
     eop_weights = np.delete(eop_weights, (date_idx_eop - date_idx[0])[1:], axis=0)
-    pct_contribution = np.multiply(Rv[date_idx[0]:], bop_weights)
+    pct_contribution = np.multiply(Rv[date_idx[0]:], bop_weights)    
     cum_returns = (1 + portf_returns).cumprod()
     eop_value = np.multiply(
         eop_weights, 
@@ -269,17 +297,17 @@ def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
     date_index = R.loc[weights.index[0]:].index
     cols = weights.columns
     portf_returns = pd.Series(portf_returns, index=date_index, name='return')
-    pct_contribution = pd.DataFrame(bop_weights, index=date_index, columns=cols)
+    pct_contribution = pd.DataFrame(pct_contribution, index=date_index, columns=cols)
     bop_weights = pd.DataFrame(bop_weights, index=date_index, columns=cols)
     eop_weights = pd.DataFrame(eop_weights, index=date_index, columns=cols)
     bop_value = pd.DataFrame(bop_value, index=date_index, columns=cols)
     eop_value = pd.DataFrame(eop_value, index=date_index, columns=cols)
-    
+    risk_contribution = pd.DataFrame(risk_contribution, index=weights.index, columns=cols)
     out = [portf_returns, pct_contribution, bop_weights, eop_weights, 
-           bop_value, eop_value, turnover]
+           bop_value, eop_value, turnover, risk_contribution]
     out = {k: v for k, v in zip(['returns', 'contribution', 'BOP.Weight', 
                                  'EOP.Weight', 'BOP.Value', 'EOP.Value', 
-                                 'Two.Way.Turnover'], out)}
+                                 'Two.Way.Turnover', 'risk_contribution'], out)}
     
     return out
     
