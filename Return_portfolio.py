@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Apr 24 15:21:56 2023
+Created on Tue May 16 12:37:57 2023
 
-@author: ilyak
+@author: ilyak, HedgeShot
 """
+
+
 
 import numpy as np
 import pandas as pd
@@ -22,7 +24,7 @@ def make_demo():
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
 
-    return get_portfolio_return(rets, [.5, .25, .25], verbose=True) #rebalance_on='months')#weights)
+    return return_portfolio(rets, [.5, .25, .25], verbose=True) #rebalance_on='months')#weights)
     
     
 def get_sample_prices():
@@ -43,7 +45,7 @@ def get_sample_prices():
     return pd.concat(df_list, axis=1).dropna()
     
 
-def get_rebalance_endpoints(df, on = "M", offset = 0):
+def endpoints(df, on = "M", offset = 0):
     """
     Returns index of endpoints of a time series analogous to R's endpoints
     function.
@@ -136,7 +138,7 @@ def prepare_weights(R, weights=None, rebalance_on=None):
     # rebalancing schedule --  also add in the very first date into the schedule
     if weights.shape[0] == 1 and weights.index[0] == 0:
         if rebalance_on is not None:
-            ep = get_rebalance_endpoints(R, on=rebalance_on)
+            ep = endpoints(R, on=rebalance_on)
             weights = pd.DataFrame(
                 np.tile(weights, (len(ep), 1)), 
                 index=R.index[ep], 
@@ -200,7 +202,7 @@ def compute_risk_contribution(rets, weights):
     return risk_contribution / portfolio_vol
     
 
-def get_portfolio_return(R, weights=None, verbose=True, rebalance_on=None):
+def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     """
 
     Parameters
