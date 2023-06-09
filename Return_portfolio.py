@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue May 16 12:37:57 2023
-
-@author: ilyak, HedgeShot
-"""
-
-
-
 import numpy as np
 import pandas as pd
 import warnings as wn
@@ -24,7 +15,7 @@ def make_demo():
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
 
-    return return_portfolio(rets, [.5, .25, .25], verbose=True) #rebalance_on='months')#weights)
+    return return_portfolio(rets, [.5, .25, .25], verbose=True, rebalance_on = 'months') #rebalance_on='months')#weights)
     
     
 def get_sample_prices():
@@ -187,12 +178,10 @@ def compute_risk_contribution(rets, weights):
         TxN array of returns
     weights : np.array
         array of weights
-
     Returns
     -------
     np.ndarray
         percentage risk contribution
-
     """
     covariances = np.cov(rets[1:].T)
     portfolio_vol = np.sqrt(np.dot(np.dot(weights, covariances), weights))
@@ -204,7 +193,6 @@ def compute_risk_contribution(rets, weights):
 
 def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     """
-
     Parameters
     ----------
     R : a pandas series of asset returns
@@ -216,17 +204,14 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
         and two-way turnover calculation
     rebalance_on : a string specifying rebalancing frequency if weights are passed in as a vector.
         e.g. 'months'
-
     Raises
     ------
     ValueError
         Number of asset weights must be equal to the number of assets.
-
     Returns
     -------
     TYPE
         See verbose parameter for True value, otherwise just portfolio returns.
-
     """  
     R = R.copy()
   
@@ -240,7 +225,7 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     Wv = weights.values
     date_idx = np.where(R.index.isin(weights.index.tolist()))[0]
     Rv = R.values
-    portf_returns, bop_weights, eop_weights, risk_contribution = [], [], [], []
+    portf_returns, bop_weights, eop_weights = [], [], []
     for i in range(date_idx.shape[0]):
         try:
             subset = Rv[date_idx[i]:date_idx[i+1]+1]
@@ -249,7 +234,7 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
             subset = Rv[date_idx[i]:]
 
         subset_out = compute_weights_and_returns(subset, Wv[i])
-        risk_contribution.append(compute_risk_contribution(subset, Wv[i]))
+        #risk_contribution.append(compute_risk_contribution(subset, Wv[i]))
         
         if i > 0: 
             # drop first period as already there, not for EOD (for turnover comp)
@@ -262,9 +247,13 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     portf_returns = np.concatenate(portf_returns)
     bop_weights = np.concatenate(bop_weights)
     eop_weights = np.concatenate(eop_weights)
+    #risk_contribution = np.concatenate(risk_contribution, axis = 0)
+    
+
     
     if not verbose:
-        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return'), weights, R
+        portf_returns = portf_returns.iloc[1:,]
+        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return') #, weights, R
       
     # using numpy, we have a problem because we dont have dates on axis
     increment = np.array([0]+list(range(weights.shape[0]-1)))
@@ -304,12 +293,22 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     eop_weights = pd.DataFrame(eop_weights, index=date_index, columns=cols)
     bop_value = pd.DataFrame(bop_value, index=date_index, columns=cols)
     eop_value = pd.DataFrame(eop_value, index=date_index, columns=cols)
-    risk_contribution = pd.DataFrame(risk_contribution, index=weights.index, columns=cols)
+    
+    # remove first day of zeroes and trailing 1 for turnover
+    portf_returns = portf_returns.iloc[1:,]
+    bop_weights = bop_weights.iloc[1:,]
+    eop_weights = eop_weights.iloc[1:,]
+    pct_contribution = pct_contribution.iloc[1:,]
+    bop_value = bop_value.iloc[1:,]
+    eop_value = eop_value.iloc[1:,]
+    turnover = turnover.iloc[0:(len(turnover)-1),]
+    
+    #risk_contribution = pd.DataFrame(risk_contribution, index=weights.index, columns=cols)
     out = [portf_returns, pct_contribution, bop_weights, eop_weights, 
-           bop_value, eop_value, turnover, risk_contribution]
+           bop_value, eop_value, turnover]
     out = {k: v for k, v in zip(['returns', 'contribution', 'BOP.Weight', 
                                  'EOP.Weight', 'BOP.Value', 'EOP.Value', 
-                                 'Two.Way.Turnover', 'risk_contribution'], out)}
+                                 'Two.Way.Turnover'], out)}
     
     return out
     
