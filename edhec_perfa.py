@@ -373,7 +373,8 @@ def charts_PerformanceSummary(returns):
     Implements the charts.PerformanceSummary function from R,
     assuming geometrically compounded returns.
     
-    Plots the cumulative return, 
+    Plots the cumulative return of all series, period returns of the leftmost return series,
+    and the drawdown charts of all series.
 
     '''
     
