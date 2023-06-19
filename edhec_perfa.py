@@ -14,7 +14,9 @@ import warnings as wn
 
 def infer_trading_periods(s):
     '''
-    
+    Guesses the data frequency of a time series.
+    Warning: no automatic errors for functions which are probably best used on resolutions
+    of daily frequency or lower frequency (weekly, monthly, etc.)
 
     Parameters
     ----------
