@@ -15,7 +15,7 @@ def make_demo():
     weights.set_index('Date', inplace=True)
     weights.index = pd.to_datetime(weights.index)
 
-    return return_portfolio(rets, [.5, .25, .25], verbose=True, rebalance_on = 'months') #rebalance_on='months')#weights)
+    return Return_portfolio(rets, [.5, .25, .25], verbose=True, rebalance_on = 'months') #rebalance_on='months')#weights)
     
     
 def get_sample_prices():
@@ -191,7 +191,7 @@ def compute_risk_contribution(rets, weights):
     return risk_contribution / portfolio_vol
     
 
-def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
+def Return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     """
     Parameters
     ----------
