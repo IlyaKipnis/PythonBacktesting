@@ -191,7 +191,7 @@ def compute_risk_contribution(rets, weights):
     return risk_contribution / portfolio_vol
     
 
-def Return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
+def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     """
     Parameters
     ----------
@@ -234,7 +234,6 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
             subset = Rv[date_idx[i]:]
 
         subset_out = compute_weights_and_returns(subset, Wv[i])
-        #risk_contribution.append(compute_risk_contribution(subset, Wv[i]))
         
         if i > 0: 
             # drop first period as already there, not for EOD (for turnover comp)
@@ -250,7 +249,9 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     #risk_contribution = np.concatenate(risk_contribution, axis = 0)
     
     if not verbose:
-        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return').iloc[1:,]
+        return pd.DataFrame(pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, 
+                                      name='portfolio.return')).iloc[1:,]
+
       
     # using numpy, we have a problem because we dont have dates on axis
     increment = np.array([0]+list(range(weights.shape[0]-1)))
@@ -284,7 +285,8 @@ def Return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     # recreate pd.DataFrames
     date_index = R.loc[weights.index[0]:].index
     cols = weights.columns
-    portf_returns = pd.Series(portf_returns, index=date_index, name='return')
+    portf_returns = pd.DataFrame(pd.Series(portf_returns, index=date_index, 
+                                           name='portfolio.return'))
     pct_contribution = pd.DataFrame(pct_contribution, index=date_index, columns=cols)
     bop_weights = pd.DataFrame(bop_weights, index=date_index, columns=cols)
     eop_weights = pd.DataFrame(eop_weights, index=date_index, columns=cols)
