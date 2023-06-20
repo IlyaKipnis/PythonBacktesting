@@ -379,6 +379,8 @@ def charts_PerformanceSummary(returns):
     and the drawdown charts of all series.
 
     '''
+    if type(returns) == pd.Series:
+        returns = pd.DataFrame(returns)
     
     period = infer_trading_periods(returns)
     
