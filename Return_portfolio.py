@@ -249,11 +249,8 @@ def return_portfolio(R, weights=None, verbose=True, rebalance_on=None):
     eop_weights = np.concatenate(eop_weights)
     #risk_contribution = np.concatenate(risk_contribution, axis = 0)
     
-
-    
     if not verbose:
-        portf_returns = portf_returns.iloc[1:,]
-        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return') #, weights, R
+        return pd.Series(portf_returns, index=R.loc[weights.index[0]:].index, name='return').iloc[1:,]
       
     # using numpy, we have a problem because we dont have dates on axis
     increment = np.array([0]+list(range(weights.shape[0]-1)))
