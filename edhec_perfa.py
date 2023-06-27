@@ -218,6 +218,46 @@ def cvar_historic(s, level=0.05):
     else:
         raise TypeError("Expected pd.DataFrame or pd.Series")
 
+def cvar_gaussian(s, level=0.05):
+    '''
+    Computes the (1-level)% Conditional VaR (based on the parametric Gaussian method).
+    By default it computes the 95% CVaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
+    The method takes in input either a DataFrame or a Series and, in the former 
+    case, it computes the VaR for every column (Series).
+    '''
+    # alpha-quantile of Gaussian distribution
+    za = stats.norm.ppf(level, 0, 1)
+    return s.std(ddof=0) * -stats.norm.pdf(za) / level + s.mean()
+
+
+def cvar_laplace(s, level=0.05):
+    '''
+    Computes the (1-level)% Conditional VaR (based on the Laplace distribution).
+    By default it computes the 95% CVaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
+    The method takes in input either a DataFrame or a Series and, in the former 
+    case, it computes the VaR for every column (Series).
+    '''
+    # Fitting b (scale parameter) to the variance of the data
+    # Since variance of the Laplace dist.: var = 2*b**2
+    b = np.sqrt(s.std(ddof=0)**2 / 2)
+    if level =< 0.5:
+        return -b * (1 - np.log(2 * level)) + mean
+    else:
+        print("Laplace Conditional VaR is not available for a level over 50%.")
+        return 0
+
+def cvar_logistic(s, level=0.05):
+    '''
+    Computes the (1-level)% Conditional VaR (based on the Logistic distribution).
+    By default it computes the 95% CVaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
+    The method takes in input either a DataFrame or a Series and, in the former 
+    case, it computes the VaR for every column (Series).
+    '''
+    # Fitting b (scale parameter) to the variance of the data
+    # Since variance of the Logistic dist.: var = b**2*pi**2/3
+    scale = np.sqrt(3 * s.std(ddof=0)**2 / np.pi**2)
+    return -scale * np.log(((1-level) ** (1 - 1 / level)) / level) + s.mean()
+
 def Return_annualized(s, periods_per_year = None):
     '''
     Computes the return per year, or, annualized return.
