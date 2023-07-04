@@ -229,6 +229,35 @@ def cvar_gaussian(s, level=0.05):
     za = stats.norm.ppf(level, 0, 1)
     return s.std(ddof=0) * -stats.norm.pdf(za) / level + s.mean()
 
+def var_studentt(s, level = 0.05):
+    '''
+    Returns the (1-level)% VaR using the parametric Student-T distribution. 
+    By default it computes the 95% VaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
+    The method takes in input either a DataFrame or a Series and, in the former 
+    case, it computes the VaR for every column (Series).
+    '''
+    # Fitting Student-T parameters to the data
+    v = np.array([stats.t.fit(s[col])[0] for col in s.columns])
+    # alpha-quantile of Student-T distribution
+    za = stats.t.ppf(level, v, 1)
+    return - np.sqrt((v - 2) / v) * za * s.std(ddof=0) + s.mean()
+
+def cvar_studentt(s, level=0.05):
+    '''
+    Computes the (1-level)% Conditional VaR (based on the Student-T distribution).
+    By default it computes the 95% CVaR, i.e., alpha=0.95 which gives level 1-alpha=0.05.
+    The method takes in input either a DataFrame or a Series and, in the former 
+    case, it computes the VaR for every column (Series).
+    '''
+    # Fitting student-t parameters to the data
+    v, scale = np.array([]), np.array([])
+    for col in s.columns:
+        col_v, _, col_scale = stats.t.fit(s[col])
+        v = np.append(v, col_v)
+        scale = np.append(scale, col_scale)
+    # alpha-quantile of Student-T distribution
+    za = stats.t.ppf(1-level, v, 1)
+    return - scale * (v + za**2) / (v - 1) * stats.t.pdf(za, v) / level + s.mean()
 
 def cvar_laplace(s, level=0.05):
     '''
